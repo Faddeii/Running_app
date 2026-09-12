@@ -187,6 +187,16 @@ h1,h2,h3,h4{margin:0;font-weight:800;letter-spacing:-.02em}
 .day .dbody .h{font-weight:800;font-size:14.5px}
 .day .dbody .p{font-size:13px;color:var(--muted);margin-top:3px;line-height:1.45}
 .day.rest{opacity:.75}
+.day-check{width:32px;height:32px;border-radius:50%;border:2px solid var(--line);background:var(--bg-elev2);flex-shrink:0;display:grid;place-items:center;color:transparent;font-weight:900;font-size:15px;align-self:center;transition:transform .12s}
+.day-check:active{transform:scale(.88)}
+.day.done{opacity:.9}
+.day.done .day-check{background:var(--accent);border-color:var(--accent);color:#fff}
+.day.done .dbody .h{text-decoration:line-through;color:var(--muted)}
+.plan-progress-card{position:sticky;top:0;z-index:10}
+.pp-top{display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:15px;margin-bottom:9px}
+.pp-top #pp-pct{color:var(--brand)}
+.pp-bar{height:12px;background:var(--bg-elev2);border-radius:7px;overflow:hidden}
+.pp-bar i{display:block;height:100%;background:var(--grad);width:0;transition:width .35s ease;border-radius:7px}
 
 .modal{position:fixed;inset:0;z-index:2000;background:var(--bg);overflow-y:auto;display:none;padding:calc(var(--safe-top) + 10px) 16px calc(var(--safe-bottom) + 24px)}
 .modal.open{display:block;animation:slideup .25s ease}

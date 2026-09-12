@@ -4,6 +4,7 @@
   const $ = UI.$, $$ = UI.$$;
   let firstFix = false;
   let ranks = {};       // runId -> [{m,label,sec,rank}]
+  let currentPlan = null, currentDone = {};
 
   Tracker.init(onUpdate, onStatus);
 
@@ -147,11 +148,57 @@
     const wrPace = 142;
     if (goalSec / (goalDistM / 1000) < wrPace || (curDistM >= 400 && curSec / (curDistM / 1000) < wrPace)) { UI.toast('Это быстрее мирового рекорда 🙂 Проверь цифры'); return; }
     const cfg = { currentDistM: curDistM, currentTimeSec: curSec, goalDistM, goalTimeSec: goalSec, days, weeks, startVolume, longDay };
-    const plan = Training.buildPlan(cfg);
-    UI.renderPlan(plan);
-    DB.setSetting('plan', { cfg, ts: Date.now() });
+    currentPlan = Training.buildPlan(cfg);
+    currentDone = {};
+    UI.renderPlan(currentPlan, currentDone);
+    DB.setSetting('plan', { cfg, ts: Date.now(), done: {} });
     $('#plan-result').scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
+
+  // Отметки выполнения + сброс (делегирование на контейнере плана)
+  $('#plan-result').addEventListener('click', e => {
+    const chk = e.target.closest('.day-check');
+    if (chk) {
+      const key = chk.dataset.daykey;
+      currentDone[key] = !currentDone[key];
+      if (!currentDone[key]) delete currentDone[key];
+      const dayEl = chk.closest('.day');
+      if (dayEl) dayEl.classList.toggle('done', !!currentDone[key]);
+      savePlanDone();
+      if (currentPlan) UI.updatePlanProgress(currentPlan, currentDone);
+      return;
+    }
+    if (e.target.closest('#btn-reset-plan')) {
+      if (!confirm('Сбросить все отметки выполнения плана?')) return;
+      currentDone = {};
+      savePlanDone();
+      if (currentPlan) UI.renderPlan(currentPlan, currentDone);
+      UI.toast('Отметки сброшены');
+    }
+  });
+  function savePlanDone() {
+    const p = DB.settings().plan;
+    if (p) { p.done = currentDone; DB.setSetting('plan', p); }
+  }
+
+  // Загрузка сохранённого плана при старте: восстановить форму и отрисовать с отметками
+  function loadSavedPlan() {
+    const p = DB.settings().plan;
+    if (!p || !p.cfg) return;
+    const c = p.cfg;
+    const setKm = (id, m) => { const el = $(id); if (el) el.value = (m / 1000); };
+    setKm('#cur-dist', c.currentDistM);
+    setKm('#goal-dist', c.goalDistM);
+    const setHMS = (pfx, sec) => { $(pfx + '-h').value = Math.floor(sec / 3600); $(pfx + '-m').value = Math.floor((sec % 3600) / 60); $(pfx + '-s').value = sec % 60; };
+    setHMS('#cur', c.currentTimeSec || 0);
+    setHMS('#goal', c.goalTimeSec || 0);
+    $('#goal-days').value = c.days; $('#goal-weeks').value = c.weeks;
+    if (c.startVolume) $('#goal-vol').value = c.startVolume;
+    $('#goal-longday').value = c.longDay;
+    currentPlan = Training.buildPlan(c);
+    currentDone = p.done || {};
+    UI.renderPlan(currentPlan, currentDone);
+  }
 
   // ---------- Настройки ----------
   const setModal = $('#settings-modal');
@@ -206,6 +253,7 @@
     UI.ensureRecMap();
     renderControls();
     await refreshAll();
+    loadSavedPlan();
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         pos => { UI.centerRec(pos.coords.latitude, pos.coords.longitude); const a = pos.coords.accuracy; onStatus({ quality: a <= 8 ? 'good' : a <= 20 ? 'ok' : 'bad', accuracy: a }); },

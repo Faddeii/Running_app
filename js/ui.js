@@ -398,7 +398,23 @@ const UI = (() => {
 
   // ---------- План ----------
   const TYPE_BADGE = { rest: ['#a0a0ab', '😴'], easy: ['#00b16a', '🟢'], long: ['#2f7bff', '🔵'], tempo: ['#f5a623', '🟡'], interval: ['#fc4c02', '🟠'], rep: ['#e0245e', '🔴'], mtempo: ['#2f7bff', '🔷'] };
-  function renderPlan(plan) {
+  function planTotals(plan, done) {
+    let total = 0, doneN = 0;
+    plan.weeks.forEach(w => w.days.forEach((d, i) => {
+      if (d.type !== 'rest') { total++; if (done && done[`w${w.n}-${i}`]) doneN++; }
+    }));
+    return { total, doneN, pct: total ? Math.round(doneN / total * 100) : 0 };
+  }
+  function updatePlanProgress(plan, done) {
+    const t = planTotals(plan, done);
+    const txt = $('#pp-text'), pct = $('#pp-pct'), fill = $('#pp-fill');
+    if (txt) txt.textContent = `${t.doneN} из ${t.total} тренировок`;
+    if (pct) pct.textContent = `${t.pct}%`;
+    if (fill) fill.style.width = t.pct + '%';
+  }
+
+  function renderPlan(plan, done) {
+    done = done || {};
     const z = Training.ZONE_META;
     const delta = plan.goalVDOT - plan.currentVDOT;
     let goalNote;
@@ -416,15 +432,25 @@ const UI = (() => {
     const weeksHtml = plan.weeks.map(w => {
       const tag = w.isTaper ? '<span class="pill" style="background:#e6f0ff;color:#2f7bff">подводка</span>'
         : w.isCutback ? '<span class="pill" style="background:#e3f9ef;color:#00b16a">разгрузка</span>' : '';
-      const daysHtml = w.days.map(day => {
+      const daysHtml = w.days.map((day, i) => {
         const [c, emj] = TYPE_BADGE[day.type] || TYPE_BADGE.easy;
-        return `<div class="day ${day.type === 'rest' ? 'rest' : ''}"><div class="dtag"><div class="dn">${day.dow}</div><div class="badge" style="background:${c}22">${emj}</div></div>` +
-          `<div class="dbody"><div class="h">${day.title}</div><div class="p">${day.desc}</div></div></div>`;
+        const key = `w${w.n}-${i}`;
+        const isDone = !!done[key];
+        const check = day.type === 'rest' ? '' :
+          `<button class="day-check" data-daykey="${key}" aria-label="Отметить выполнено">✓</button>`;
+        return `<div class="day ${day.type === 'rest' ? 'rest' : ''} ${isDone ? 'done' : ''}" data-daykey="${key}"><div class="dtag"><div class="dn">${day.dow}</div><div class="badge" style="background:${c}22">${emj}</div></div>` +
+          `<div class="dbody"><div class="h">${day.title}</div><div class="p">${day.desc}</div></div>${check}</div>`;
       }).join('');
       return `<div class="week"><div class="week-title"><span>Неделя ${w.n} ${tag}</span><span class="km">${w.totalKm} км</span></div>${daysHtml}</div>`;
     }).join('');
 
+    const tot = planTotals(plan, done);
     $('#plan-result').innerHTML = `
+      <div class="card plan-progress-card">
+        <div class="pp-top"><span id="pp-text">${tot.doneN} из ${tot.total} тренировок</span><span id="pp-pct">${tot.pct}%</span></div>
+        <div class="pp-bar"><i id="pp-fill" style="width:${tot.pct}%"></i></div>
+        <button class="btn ghost mt16" id="btn-reset-plan">Сбросить отметки</button>
+      </div>
       <div class="card"><h3>📊 Уровень и цель</h3>
         <div class="zone"><div class="info"><div class="n">Текущий уровень</div><div class="desc">по недавнему результату</div></div><div class="pace mono">VDOT ${plan.currentVDOT.toFixed(1)}</div></div>
         <div class="zone"><div class="info"><div class="n">Нужно для цели</div><div class="desc">${Training.distName(plan.cfg.goalDistM)} за ${Stats.fmtTime(plan.cfg.goalTimeSec)}</div></div><div class="pace mono">VDOT ${plan.goalVDOT.toFixed(1)}</div></div>
@@ -453,7 +479,7 @@ const UI = (() => {
   return {
     $, $$, ensureRecMap, centerRec, drawRecLine, resetRecLine, routeThumb,
     renderFeed, renderStreakStrip, renderProfile, renderCalendar, calShift,
-    renderDetail, renderAchievements, renderPlan, updateRecordLaps,
+    renderDetail, renderAchievements, renderPlan, updateRecordLaps, updatePlanProgress,
     toast, switchView, fmtDate, currentStreak
   };
 })();
