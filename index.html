@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#ffffff">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Ритм">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="lib/leaflet.css">
+<link rel="stylesheet" href="css/styles.css">
+<title>Ритм — бег и тренировки</title>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ ЛЕНТА ============ -->
+  <section id="view-feed" class="view active">
+    <div class="topbar">
+      <div class="brand"><span class="logo-mark">◣</span> <span class="logo-text">РИТ<span class="o">М</span></span></div>
+      <button class="icon-btn" id="btn-settings2" aria-label="Настройки">⚙️</button>
+    </div>
+
+    <div class="card streak-card" id="streak-card">
+      <div class="streak-left">
+        <div class="fire-badge"><div class="fw" id="streak-weeks">0</div><div class="fl">Недели</div></div>
+      </div>
+      <div class="streak-right">
+        <div class="streak-title">Серии тренировок</div>
+        <div class="dow-strip" id="dow-strip"></div>
+      </div>
+    </div>
+
+    <div id="feed-list"></div>
+  </section>
+
+  <!-- ============ ЗАПИСЬ ============ -->
+  <section id="view-record" class="view">
+    <div class="topbar">
+      <div class="brand"><span class="logo-text" id="record-sub2">Запись</span></div>
+      <button class="icon-btn" id="btn-settings" aria-label="Настройки">⚙️</button>
+    </div>
+
+    <div id="gps-warn" class="warn" hidden></div>
+
+    <div id="map"></div>
+    <div class="gps-badge">
+      <span class="gps-dot" id="gps-dot"></span>
+      <span id="gps-text">GPS: ожидание…</span>
+    </div>
+
+    <div class="stat-hero">
+      <div class="val mono" id="hero-distance">0.00</div>
+      <div class="unit">километров</div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-box"><div class="v mono" id="hero-time">0:00</div><div class="l">Время</div></div>
+      <div class="stat-box"><div class="v mono" id="hero-pace">—:—</div><div class="l">Темп /км</div></div>
+      <div class="stat-box"><div class="v mono" id="hero-kcal">0</div><div class="l">Ккал</div></div>
+    </div>
+
+    <div class="card lap-panel" id="lap-panel" hidden>
+      <div class="lap-head">
+        <div class="cur" id="lap-cur">Круг 1 <small id="lap-cur-sub"></small></div>
+        <button class="btn-lap" id="btn-lap">⏱ Отметить круг</button>
+      </div>
+      <div class="lap-list" id="lap-list"></div>
+    </div>
+
+    <div class="controls" id="controls">
+      <button class="btn-round btn-start" id="btn-start">СТАРТ</button>
+    </div>
+    <div class="hint" id="record-hint">Дай приложению доступ к геолокации. Для точности бегай на открытом воздухе.</div>
+  </section>
+
+  <!-- ============ ПЛАН ============ -->
+  <section id="view-plan" class="view">
+    <div class="topbar"><div class="brand"><span class="logo-text">План</span></div></div>
+
+    <div class="card">
+      <div class="section-label">Шаг 1 · Твоя текущая форма</div>
+      <div class="field">
+        <label>Недавний результат — дистанция</label>
+        <div class="desc">Дистанция свежего забега или прикидки (км). По ней считается твой уровень (VDOT) и рабочие темпы.</div>
+        <div class="chips" id="cur-dist-chips">
+          <button class="chip" data-km="1">1 км</button>
+          <button class="chip active" data-km="5">5 км</button>
+          <button class="chip" data-km="10">10 км</button>
+          <button class="chip" data-km="21.097">21.1 км</button>
+        </div>
+        <input type="number" id="cur-dist" inputmode="decimal" step="0.1" min="0.4" value="5" placeholder="км">
+      </div>
+      <div class="field">
+        <label>Недавний результат — время</label>
+        <div class="desc">За сколько пробежал эту дистанцию. Часы : минуты : секунды.</div>
+        <div class="time3">
+          <div class="u"><input type="number" id="cur-h" inputmode="numeric" min="0" value="0"><span>ч</span></div>
+          <div class="u"><input type="number" id="cur-m" inputmode="numeric" min="0" value="25"><span>мин</span></div>
+          <div class="u"><input type="number" id="cur-s" inputmode="numeric" min="0" max="59" value="0"><span>сек</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Шаг 2 · Твоя цель</div>
+      <div class="field">
+        <label>Целевая дистанция</label>
+        <div class="desc">На какую дистанцию готовишься (км). Можно ввести любое своё значение.</div>
+        <div class="chips" id="goal-dist-chips">
+          <button class="chip" data-km="5">5 км</button>
+          <button class="chip active" data-km="10">10 км</button>
+          <button class="chip" data-km="21.097">21.1 км</button>
+          <button class="chip" data-km="42.195">42.2 км</button>
+        </div>
+        <input type="number" id="goal-dist" inputmode="decimal" step="0.1" min="0.4" value="10" placeholder="км">
+      </div>
+      <div class="field">
+        <label>Целевое время</label>
+        <div class="desc">Результат, которого хочешь достичь. Часы : минуты : секунды.</div>
+        <div class="time3">
+          <div class="u"><input type="number" id="goal-h" inputmode="numeric" min="0" value="0"><span>ч</span></div>
+          <div class="u"><input type="number" id="goal-m" inputmode="numeric" min="0" value="48"><span>мин</span></div>
+          <div class="u"><input type="number" id="goal-s" inputmode="numeric" min="0" max="59" value="0"><span>сек</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Шаг 3 · Параметры плана</div>
+      <div class="field">
+        <label>Тренировок в неделю</label>
+        <div class="desc">Сколько дней в неделю реально готов бегать (3–7).</div>
+        <input type="number" id="goal-days" inputmode="numeric" min="3" max="7" value="4">
+      </div>
+      <div class="field">
+        <label>Длительность плана, недель</label>
+        <div class="desc">Для 5–10 км обычно 8 недель, полумарафон 12, марафон 16.</div>
+        <input type="number" id="goal-weeks" inputmode="numeric" min="4" max="24" value="8">
+      </div>
+      <div class="field">
+        <label>Текущий недельный объём, км <span style="color:var(--muted2);font-weight:600">(необязательно)</span></label>
+        <div class="desc">Сколько км в неделю бегаешь сейчас. Пусто — подберём по цели.</div>
+        <input type="number" id="goal-vol" inputmode="numeric" min="0" placeholder="напр. 25">
+      </div>
+      <div class="field">
+        <label>День длинной пробежки</label>
+        <div class="desc">В этот день будет самая длинная тренировка недели.</div>
+        <select id="goal-longday">
+          <option value="0">Понедельник</option><option value="1">Вторник</option>
+          <option value="2">Среда</option><option value="3">Четверг</option>
+          <option value="4">Пятница</option><option value="5">Суббота</option>
+          <option value="6" selected>Воскресенье</option>
+        </select>
+      </div>
+      <button class="btn" id="btn-build-plan">Построить план</button>
+      <div class="small-note mt8">Расчёт по методике Джека Дэниелса (VDOT) — системе подготовки профи.</div>
+    </div>
+    <div id="plan-result"></div>
+  </section>
+
+  <!-- ============ ПРОФИЛЬ ============ -->
+  <section id="view-profile" class="view">
+    <div class="topbar"><div class="brand"><span class="logo-text">Профиль</span></div>
+      <button class="icon-btn" id="btn-settings3" aria-label="Настройки">⚙️</button>
+    </div>
+
+    <div class="card profile-head">
+      <div class="avatar big" id="profile-avatar">Б</div>
+      <div class="profile-name" id="profile-name">Бегун</div>
+      <div class="profile-city" id="profile-city"></div>
+      <div class="profile-counts">
+        <div><div class="v mono" id="pc-runs">0</div><div class="l">Тренировки</div></div>
+        <div><div class="v mono" id="pc-km">0</div><div class="l">Всего км</div></div>
+        <div><div class="v mono" id="pc-streak">0</div><div class="l">🔥 дней</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="cal-head">
+        <button id="cal-prev">‹</button>
+        <h3 id="cal-title" style="text-transform:none;color:var(--text);font-size:16px">—</h3>
+        <button id="cal-next">›</button>
+      </div>
+      <div class="cal-grid" id="cal-dows"></div>
+      <div class="cal-grid" id="cal-grid" style="margin-top:6px"></div>
+    </div>
+
+    <div class="card">
+      <h3>🏆 Личные рекорды</h3>
+      <div id="pr-list"></div>
+    </div>
+
+    <div class="section-label" style="margin:6px 4px 12px">Достижения</div>
+    <div class="ach-grid" id="ach-grid"></div>
+  </section>
+
+</div>
+
+<nav class="bottom-nav">
+  <button class="nav-item active" data-view="feed"><span class="ico">🏠</span>Лента</button>
+  <button class="nav-item nav-record" data-view="record"><span class="ico rec">＋</span>Запись</button>
+  <button class="nav-item" data-view="plan"><span class="ico">🎯</span>План</button>
+  <button class="nav-item" data-view="profile"><span class="ico">👤</span>Профиль</button>
+</nav>
+
+<!-- Detail modal (Strava activity page) -->
+<div class="modal" id="detail-modal">
+  <div class="modal-head">
+    <button class="back" id="detail-back">‹</button>
+    <div style="flex:1;min-width:0">
+      <div class="dh-who"><div class="avatar sm" id="detail-avatar">Б</div>
+        <div style="min-width:0"><div class="dh-name" id="detail-name">Бегун</div>
+        <div class="dh-meta" id="detail-date"></div></div>
+      </div>
+    </div>
+  </div>
+  <h2 class="detail-title" id="detail-title">Тренировка</h2>
+
+  <div class="big-stats" id="detail-bigstats"></div>
+  <div id="detail-map"></div>
+
+  <div class="card" id="detail-pr-card" hidden><h3>🏆 Лучшие результаты</h3><div id="detail-efforts"></div></div>
+  <div class="card" id="detail-chart-card" hidden><h3>Темп по дистанции</h3><div id="detail-chart"></div></div>
+  <div class="card" id="detail-laps-card" hidden><h3>Круги</h3><div class="lap-list" id="detail-laps"></div></div>
+  <div class="card"><h3>Отрезки</h3><div class="splits-table" id="detail-splits"></div></div>
+  <button class="btn ghost" id="detail-delete">Удалить тренировку</button>
+</div>
+
+<!-- Settings modal -->
+<div class="modal" id="settings-modal">
+  <div class="modal-head"><button class="back" id="settings-back">‹</button><h2>Настройки</h2></div>
+
+  <div class="card">
+    <h3>👤 Профиль</h3>
+    <div class="field"><label>Имя</label><div class="desc">Показывается на карточках тренировок.</div><input type="text" id="set-name" placeholder="Бегун"></div>
+    <div class="field"><label>Город</label><div class="desc">Необязательно.</div><input type="text" id="set-city" placeholder="напр. Москва"></div>
+    <div class="field"><label>Вес, кг</label><div class="desc">Для расчёта калорий.</div><input type="number" id="set-weight" inputmode="numeric" value="70"></div>
+  </div>
+
+  <div class="card">
+    <h3>🔊 Голосовой помощник</h3>
+    <div class="toggle-row"><div class="tl"><div class="n">Озвучивание во время бега</div><div class="d">Голос сообщает статистику на бегу.</div></div>
+      <select id="set-voice"><option value="1">Вкл</option><option value="0">Выкл</option></select></div>
+    <div class="toggle-row"><div class="tl"><div class="n">Как часто</div><div class="d">По дистанции или по времени.</div></div>
+      <select id="set-voice-every">
+        <option value="km">Каждый 1 км</option><option value="0.5km">Каждые 0.5 км</option><option value="2km">Каждые 2 км</option>
+        <option value="1min">Каждую минуту</option><option value="2min">Каждые 2 минуты</option><option value="5min">Каждые 5 минут</option>
+      </select></div>
+    <div class="toggle-row"><div class="tl"><div class="n">Что сообщать</div><div class="d">Набор показателей.</div></div>
+      <select id="set-voice-content"><option value="full">Дистанция, время, темп</option><option value="pace">Только темп</option><option value="dist">Дистанция и время</option></select></div>
+    <div class="toggle-row"><div class="tl"><div class="n">Озвучивать круги</div><div class="d">Номер и время круга.</div></div>
+      <select id="set-voice-laps"><option value="1">Вкл</option><option value="0">Выкл</option></select></div>
+    <button class="btn secondary mt8" id="btn-test-voice">Проверить голос</button>
+  </div>
+
+  <div class="card">
+    <h3>🏟 Бег по кругам (стадион)</h3>
+    <div class="toggle-row"><div class="tl"><div class="n">Автоподсчёт кругов</div><div class="d">Считать круги по дистанции.</div></div>
+      <select id="set-track"><option value="0">Выкл</option><option value="1">Вкл</option></select></div>
+    <div class="toggle-row"><div class="tl"><div class="n">Длина круга</div><div class="d">Стандартная дорожка — 400 м.</div></div>
+      <select id="set-lap-len"><option value="400">400 м</option><option value="200">200 м</option><option value="300">300 м</option><option value="500">500 м</option><option value="1000">1000 м</option></select></div>
+    <div class="small-note mt8">Кнопка «Отметить круг» работает всегда.</div>
+  </div>
+
+  <div class="card">
+    <h3>⚙️ Прочее</h3>
+    <div class="toggle-row"><div class="tl"><div class="n">Не гасить экран во время бега</div><div class="d">Держит GPS активным.</div></div>
+      <select id="set-wakelock"><option value="1">Да</option><option value="0">Нет</option></select></div>
+    <div class="toggle-row"><div class="tl"><div class="n">Определять место тренировки</div><div class="d">Показывать город на карточке (нужен интернет).</div></div>
+      <select id="set-geocode"><option value="1">Да</option><option value="0">Нет</option></select></div>
+  </div>
+
+  <div class="card">
+    <h3>💾 Данные</h3>
+    <button class="btn secondary" id="btn-export">Экспорт тренировок (файл)</button>
+    <div style="height:10px"></div>
+    <button class="btn ghost" id="btn-wipe">Стереть все данные</button>
+  </div>
+  <div class="small-note center">Ритм · PWA · работает офлайн · данные только на твоём телефоне</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="lib/leaflet.js"></script>
+<script src="js/db.js"></script>
+<script src="js/geo.js"></script>
+<script src="js/stats.js"></script>
+<script src="js/efforts.js"></script>
+<script src="js/training.js"></script>
+<script src="js/tracker.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
+  }
+</script>
+</body>
+</html>
