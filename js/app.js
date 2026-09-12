@@ -6,16 +6,28 @@
   let ranks = {};       // runId -> [{m,label,sec,rank}]
   let currentPlan = null, currentDone = {};
 
-  Tracker.init(onUpdate, onStatus);
+  Tracker.init(onUpdate, onStatus, onState);
 
   function onUpdate(u) {
     $('#hero-distance').textContent = Stats.fmtKm(u.distance);
     $('#hero-time').textContent = Stats.fmtTime(u.elapsedSec);
     $('#hero-pace').textContent = Stats.fmtPace(u.pace);
     $('#hero-kcal').textContent = u.kcal;
-    if (u.latlngs && u.latlngs.length) UI.drawRecLine(u.latlngs, u.lastPoint);
+    if (u.segments && u.segments.length) UI.drawRecLine(u.segments, u.lastPoint);
     if (u.lastPoint && !firstFix) { firstFix = true; UI.centerRec(u.lastPoint.lat, u.lastPoint.lng); }
     UI.updateRecordLaps(u);
+  }
+
+  // Реакция на авто-паузу при сворачивании приложения
+  function onState(reason) {
+    const bw = $('#bg-warn');
+    if (reason === 'autopaused' || reason === 'needresume') {
+      bw.hidden = false;
+      bw.innerHTML = '⏸ <b>Запись на паузе</b> — приложение было свёрнуто. Нажми <b>ПУСК</b>, чтобы продолжить (пропущенный участок в трек не попадёт).';
+    } else if (reason === 'resumed') {
+      bw.hidden = true;
+    }
+    renderControls();
   }
 
   function onStatus(st) {
@@ -54,7 +66,7 @@
   }
   function doStart() {
     if (!window.isSecureContext) UI.toast('Нужен HTTPS для GPS. См. README.');
-    firstFix = false; UI.resetRecLine(); Tracker.start(); renderControls();
+    firstFix = false; $('#bg-warn').hidden = true; UI.resetRecLine(); Tracker.start(); renderControls();
   }
   async function doStop() {
     const run = await Tracker.stop();
@@ -77,7 +89,7 @@
   function resetHero() {
     $('#hero-distance').textContent = '0.00'; $('#hero-time').textContent = '0:00';
     $('#hero-pace').textContent = '—:—'; $('#hero-kcal').textContent = '0';
-    UI.resetRecLine(); $('#lap-panel').hidden = true; $('#lap-list').innerHTML = '';
+    UI.resetRecLine(); $('#lap-panel').hidden = true; $('#lap-list').innerHTML = ''; $('#bg-warn').hidden = true;
   }
   $('#btn-lap').onclick = () => { const lap = Tracker.markLap(); if (lap) UI.toast(`Круг ${lap.n}: ${Stats.fmtTime(lap.sec)}`); };
 

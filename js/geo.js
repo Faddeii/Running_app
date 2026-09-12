@@ -68,10 +68,16 @@ const Geo = (() => {
       this.warmup = 0;
       this.lastAccuracy = null;
     }
-    // Возвращает: {accepted, distance, point, quality}
-    add(raw) {
+    // Пометить разрыв трека: следующая точка станет новой опорной
+    // (без соединяющей прямой и без учёта пропущенной дистанции). Для авто-паузы.
+    markBreak() { this._break = true; }
+
+    // add(raw, storeT): storeT — метка времени для хранения точки (время «по движению»,
+    // исключающее паузы). Для расчёта скорости/сглаживания используется реальное время GPS.
+    add(raw, storeT) {
       const { latitude, longitude, accuracy } = raw.coords;
       const t = raw.timestamp;
+      const pt = (storeT != null) ? storeT : t;
       this.lastAccuracy = accuracy;
 
       const quality = accuracy <= 8 ? 'good' : accuracy <= 20 ? 'ok' : 'bad';
@@ -81,15 +87,24 @@ const Geo = (() => {
         return { accepted: false, distance: this.distance, quality, reason: 'accuracy' };
       }
 
+      // 0) разрыв после авто-паузы: переустанавливаем опору, дистанцию не копим
+      if (this._break) {
+        this.kalman.reset();
+        const sm0 = this.kalman.process(latitude, longitude, accuracy, t);
+        this.last = { lat: sm0.lat, lng: sm0.lng, t };
+        this.points.push({ lat: sm0.lat, lng: sm0.lng, t: pt, d: this.distance, brk: true });
+        this._break = false;
+        return { accepted: false, distance: this.distance, quality, reason: 'break', point: sm0 };
+      }
+
       // 2) прогрев — даём GPS «устаканиться», точки собираем, но дистанцию не копим
       const sm = this.kalman.process(latitude, longitude, accuracy, t);
 
       if (this.warmup < this.warmupNeeded) {
         this.warmup++;
         this.last = { lat: sm.lat, lng: sm.lng, t };
-        // первую опорную точку в трек не пишем, ждём стабилизации
         if (this.warmup === this.warmupNeeded) {
-          this.points.push({ lat: sm.lat, lng: sm.lng, t, d: 0 });
+          this.points.push({ lat: sm.lat, lng: sm.lng, t: pt, d: 0 });
         }
         return { accepted: false, distance: this.distance, quality, reason: 'warmup', point: sm };
       }
@@ -106,17 +121,27 @@ const Geo = (() => {
 
       // 4) антидрожание: слишком маленький сдвиг — считаем стоянием на месте
       if (step < this.minStep) {
-        this.last = { lat: sm.lat, lng: sm.lng, t }; // позицию обновляем, дистанцию нет
+        this.last = { lat: sm.lat, lng: sm.lng, t };
         return { accepted: false, distance: this.distance, quality, reason: 'jitter', point: sm };
       }
 
       // 5) принимаем движение
       this.distance += step;
       this.last = { lat: sm.lat, lng: sm.lng, t };
-      this.points.push({ lat: sm.lat, lng: sm.lng, t, d: this.distance });
+      this.points.push({ lat: sm.lat, lng: sm.lng, t: pt, d: this.distance });
       return { accepted: true, distance: this.distance, step, speed, quality, point: sm };
     }
     latlngs() { return this.points.map(p => [p.lat, p.lng]); }
+    // Сегменты трека, разбитые по разрывам (для рисования линии без прямых через паузы)
+    latlngSegments() {
+      const segs = []; let cur = [];
+      for (const p of this.points) {
+        if (p.brk && cur.length) { segs.push(cur); cur = []; }
+        cur.push([p.lat, p.lng]);
+      }
+      if (cur.length) segs.push(cur);
+      return segs;
+    }
   }
 
   // Границы трека для вписывания карты

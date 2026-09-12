@@ -45,10 +45,16 @@ const UI = (() => {
     if (!recMap.hasLayer(recDot)) recDot.addTo(recMap);
     recDot.setLatLng([lat, lng]);
   }
-  function drawRecLine(latlngs, lastPoint) {
+  function drawRecLine(segments, lastPoint) {
     ensureRecMap();
-    recLine.setLatLngs(latlngs);
+    recLine.setLatLngs(segments || []); // массив сегментов (с разрывами) или точек
     if (lastPoint) { if (!recMap.hasLayer(recDot)) recDot.addTo(recMap); recDot.setLatLng([lastPoint.lat, lastPoint.lng]); }
+  }
+  function segmentize(points) {
+    const segs = []; let cur = [];
+    for (const p of points) { if (p.brk && cur.length) { segs.push(cur); cur = []; } cur.push([p.lat, p.lng]); }
+    if (cur.length) segs.push(cur);
+    return segs;
   }
   function resetRecLine() { if (recLine) recLine.setLatLngs([]); }
 
@@ -63,7 +69,7 @@ const UI = (() => {
     L.control.attribution({ prefix: false }).addTo(detMap);
     const ll = points.map(p => [p.lat, p.lng]);
     if (ll.length) {
-      L.polyline(ll, { color: '#fc4c02', weight: 5, opacity: .95, lineJoin: 'round' }).addTo(detMap);
+      L.polyline(segmentize(points), { color: '#fc4c02', weight: 5, opacity: .95, lineJoin: 'round' }).addTo(detMap);
       L.marker(ll[0], { icon: startIcon() }).addTo(detMap);
       L.marker(ll[ll.length - 1], { icon: endIcon() }).addTo(detMap);
       const b = Geo.bounds(points);

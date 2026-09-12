@@ -10,8 +10,9 @@ const Tracker = (() => {
   let segmentStart = 0;
   let tickTimer = null;
   let wakeLock = null;
-  let onUpdate = null, onStatus = null;
+  let onUpdate = null, onStatus = null, onState = null;
   let settings = null;
+  let autoPaused = false;   // пауза из-за сворачивания приложения
 
   // голос
   let lastVoiceDist = 0;   // м, последняя озвученная отметка (дистанция)
@@ -34,9 +35,26 @@ const Tracker = (() => {
     try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch {}
   }
   async function releaseWakeLock() { try { if (wakeLock) { await wakeLock.release(); wakeLock = null; } } catch {} }
+  // Авто-пауза при сворачивании / гашении экрана во время записи
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && state === 'running' && !wakeLock) acquireWakeLock();
+    if (document.visibilityState === 'hidden') {
+      if (state === 'running') autoPause();
+    } else { // снова видимо
+      if (state === 'running' && !wakeLock) acquireWakeLock();
+      if (autoPaused && onState) onState('needresume');
+    }
   });
+  window.addEventListener('pagehide', () => { if (state === 'running') autoPause(); });
+
+  function autoPause() {
+    if (state !== 'running') return;
+    elapsedBefore += now() - segmentStart;
+    state = 'paused';
+    stopTick(); releaseWakeLock();
+    autoPaused = true;
+    if (onState) onState('autopaused');
+    emit();
+  }
 
   // ---------- Речь ----------
   function speak(text) {
@@ -190,6 +208,8 @@ const Tracker = (() => {
       pace: Stats.pace(dist, sec),
       kcal: Stats.kcal(dist, sec, settings ? settings.weight : 70),
       latlngs: proc ? proc.latlngs() : [],
+      segments: proc ? proc.latlngSegments() : [],
+      autoPaused,
       lastPoint: gps && gps.point ? gps.point : (proc && proc.last ? { lat: proc.last.lat, lng: proc.last.lng } : null),
       laps: laps.slice(),
       curLap: currentLapInfo(),
@@ -200,7 +220,8 @@ const Tracker = (() => {
   // ---------- GPS ----------
   function onPos(pos) {
     if (state !== 'running' || !proc) return;
-    const r = proc.add(pos);
+    const vt = startTime + elapsedMs(); // метка времени «по движению» (без пауз)
+    const r = proc.add(pos, vt);
     if (onStatus) onStatus({ quality: r.quality, accuracy: proc.lastAccuracy, reason: r.reason });
     const dist = proc.distance;
     const sec = elapsedMs() / 1000;
@@ -224,7 +245,7 @@ const Tracker = (() => {
     startTime = now(); elapsedBefore = 0; segmentStart = now();
     lastVoiceDist = 0; lastVoiceTime = 0;
     laps = []; lapStartDist = 0; lapStartTime = 0; nextAutoLap = 0;
-    state = 'running';
+    state = 'running'; autoPaused = false;
     startWatch(); startTick(); acquireWakeLock();
     speak('Поехали!');
     emit();
@@ -232,14 +253,17 @@ const Tracker = (() => {
   function pause() {
     if (state !== 'running') return;
     elapsedBefore += now() - segmentStart;
-    state = 'paused'; stopTick(); releaseWakeLock();
+    state = 'paused'; autoPaused = false; stopTick(); releaseWakeLock();
     speak('Пауза');
     emit();
   }
   function resume() {
     if (state !== 'paused') return;
+    if (autoPaused && proc) proc.markBreak(); // разорвать трек в месте авто-паузы
+    autoPaused = false;
     segmentStart = now(); state = 'running';
     startTick(); acquireWakeLock();
+    if (onState) onState('resumed');
     speak('Продолжаем');
     emit();
   }
@@ -255,9 +279,9 @@ const Tracker = (() => {
     if (dist - lapStartDist > 5) recordLap(dist, sec, false);
     speak('Финиш! Отличная работа.');
 
-    const points = proc.points.map(p => ({ lat: +p.lat.toFixed(6), lng: +p.lng.toFixed(6), t: p.t, d: Math.round(p.d) }));
+    const points = proc.points.map(p => { const o = { lat: +p.lat.toFixed(6), lng: +p.lng.toFixed(6), t: p.t, d: Math.round(p.d) }; if (p.brk) o.brk = true; return o; });
     const savedLaps = laps.slice();
-    state = 'idle';
+    state = 'idle'; autoPaused = false;
     if (dist < 50 || points.length < 2) return { tooShort: true };
 
     return {
@@ -269,13 +293,14 @@ const Tracker = (() => {
     };
   }
 
-  function discard() { stopTick(); stopWatch(); releaseWakeLock(); state = 'idle'; proc = null; laps = []; }
+  function discard() { stopTick(); stopWatch(); releaseWakeLock(); state = 'idle'; proc = null; laps = []; autoPaused = false; }
   function getState() { return state; }
+  function isAutoPaused() { return autoPaused; }
   function testVoice() {
     settings = DB.settings();
     forceSpeak('Голосовой помощник работает. Дистанция 3 километра. Средний темп 5 минут 30 секунд на километр.');
   }
-  function init(cbUpdate, cbStatus) { onUpdate = cbUpdate; onStatus = cbStatus; }
+  function init(cbUpdate, cbStatus, cbState) { onUpdate = cbUpdate; onStatus = cbStatus; onState = cbState; }
 
-  return { init, start, pause, resume, stop, discard, getState, emit, markLap, testVoice };
+  return { init, start, pause, resume, stop, discard, getState, isAutoPaused, emit, markLap, testVoice };
 })();
