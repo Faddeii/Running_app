@@ -6,10 +6,8 @@
 const Efforts = (() => {
   const DISTS = [
     { m: 400, label: '400 м' },
-    { m: 805, label: '1/2 мили' },
     { m: 1000, label: '1 км' },
-    { m: 1609, label: '1 миля' },
-    { m: 3219, label: '2 мили' },
+    { m: 2000, label: '2 км' },
     { m: 5000, label: '5 км' },
     { m: 10000, label: '10 км' },
     { m: 15000, label: '15 км' },
