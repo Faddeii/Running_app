@@ -4,8 +4,18 @@ const UI = (() => {
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
-  const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-  const TILE_ATTR = '© OpenStreetMap';
+  // Стили карт (все доступны в РФ без ключей)
+  const TILES = {
+    sat:     { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', attr: '© Esri, Maxar', max: 19 },
+    voyager: { url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', attr: '© OpenStreetMap, © CARTO', max: 20, sub: 'abcd' },
+    osm:     { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: '© OpenStreetMap', max: 19 },
+  };
+  const BASE = [{ key: 'sat', name: 'Спутник' }, { key: 'voyager', name: 'Схема' }, { key: 'osm', name: 'OSM' }];
+  function makeLayer(k) { const t = TILES[k] || TILES.osm; return L.tileLayer(t.url, { maxZoom: t.max, attribution: t.attr, subdomains: t.sub || 'abc' }); }
+  function baseLayers() { const o = {}; BASE.forEach(b => o[b.name] = makeLayer(b.key)); return o; }
+  function keyForName(n) { const b = BASE.find(x => x.name === n); return b ? b.key : 'osm'; }
+  function nameForKey(k) { const b = BASE.find(x => x.key === k); return b ? b.name : 'OSM'; }
+  function currentStyle() { return DB.settings().mapStyle || 'sat'; }
   const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
   const MONTHS_CAP = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 
@@ -19,8 +29,11 @@ const UI = (() => {
   function ensureRecMap() {
     if (recMap) return recMap;
     recMap = L.map('map', { zoomControl: false, attributionControl: false }).setView([55.751, 37.618], 15);
-    L.tileLayer(TILE_URL, { maxZoom: 19 }).addTo(recMap);
-    L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(recMap).addAttribution(TILE_ATTR);
+    const layers = baseLayers();
+    (layers[nameForKey(currentStyle())] || layers['OSM']).addTo(recMap);
+    L.control.layers(layers, null, { position: 'topright', collapsed: true }).addTo(recMap);
+    L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(recMap);
+    recMap.on('baselayerchange', e => DB.setSetting('mapStyle', keyForName(e.name)));
     recLine = L.polyline([], { color: '#fc4c02', weight: 6, opacity: .95, lineJoin: 'round', lineCap: 'round' }).addTo(recMap);
     recDot = L.circleMarker([55.751, 37.618], { radius: 8, color: '#fff', weight: 3, fillColor: '#fc4c02', fillOpacity: 1 });
     setTimeout(() => recMap.invalidateSize(), 200);
@@ -46,8 +59,8 @@ const UI = (() => {
       dragging: false, scrollWheelZoom: false, touchZoom: false,
       doubleClickZoom: false, boxZoom: false, keyboard: false, tap: false
     }).setView([55.751, 37.618], 14);
-    L.tileLayer(TILE_URL, { maxZoom: 19 }).addTo(detMap);
-    L.control.attribution({ prefix: false }).addTo(detMap).addAttribution(TILE_ATTR);
+    makeLayer(currentStyle()).addTo(detMap);
+    L.control.attribution({ prefix: false }).addTo(detMap);
     const ll = points.map(p => [p.lat, p.lng]);
     if (ll.length) {
       L.polyline(ll, { color: '#fc4c02', weight: 5, opacity: .95, lineJoin: 'round' }).addTo(detMap);

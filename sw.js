@@ -1,5 +1,5 @@
 /* sw.js — офлайн-кэш приложения и тайлов карты */
-const APP_CACHE = 'ritm-app-v4';
+const APP_CACHE = 'ritm-app-v5';
 const TILE_CACHE = 'ritm-tiles-v1';
 const APP_ASSETS = [
   './',
@@ -41,8 +41,11 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
-  // Тайлы карты OpenStreetMap: cache-first с ограничением
-  if (url.hostname.endsWith('tile.openstreetmap.org')) {
+  // Тайлы карт (OSM / CARTO / Esri): cache-first с ограничением
+  const isTile = url.hostname.endsWith('tile.openstreetmap.org')
+    || url.hostname.endsWith('basemaps.cartocdn.com')
+    || url.hostname.endsWith('arcgisonline.com');
+  if (isTile) {
     e.respondWith(
       caches.open(TILE_CACHE).then(async cache => {
         const hit = await cache.match(req);
