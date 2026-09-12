@@ -1,5 +1,5 @@
 /* sw.js — офлайн-кэш приложения и тайлов карты */
-const APP_CACHE = 'ritm-app-v7';
+const APP_CACHE = 'ritm-app-v8';
 const TILE_CACHE = 'ritm-tiles-v1';
 const APP_ASSETS = [
   './',

@@ -227,6 +227,7 @@
     $('#set-voice-laps').value = s.voiceLaps;
     $('#set-track').value = s.track;
     $('#set-lap-len').value = s.lapLen;
+    $('#set-bgalert').value = s.bgAlert;
     setModal.classList.add('open');
   }
   ['#btn-settings', '#btn-settings2', '#btn-settings3'].forEach(id => { const b = $(id); if (b) b.onclick = openSettings; });
@@ -242,6 +243,7 @@
   $('#set-voice-laps').onchange = e => DB.setSetting('voiceLaps', +e.target.value);
   $('#set-track').onchange = e => DB.setSetting('track', +e.target.value);
   $('#set-lap-len').onchange = e => DB.setSetting('lapLen', +e.target.value);
+  $('#set-bgalert').onchange = e => DB.setSetting('bgAlert', +e.target.value);
   $('#btn-test-voice').onclick = () => Tracker.testVoice();
 
   $('#btn-export').onclick = async () => {

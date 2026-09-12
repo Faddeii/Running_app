@@ -76,7 +76,7 @@ const DB = (() => {
   // ---- Настройки ----
   const defaults = {
     name: 'Бегун', city: '', weight: 70, wakelock: 1, geocode: 1, mapStyle: 'sat', unlockedAch: [], plan: null,
-    voice: 1, voiceEvery: 'km', voiceContent: 'full', voiceLaps: 1,
+    voice: 1, voiceEvery: 'km', voiceContent: 'full', voiceLaps: 1, bgAlert: 1,
     track: 0, lapLen: 400,
   };
   function settings() {

@@ -41,7 +41,10 @@ const Tracker = (() => {
       if (state === 'running') autoPause();
     } else { // снова видимо
       if (state === 'running' && !wakeLock) acquireWakeLock();
-      if (autoPaused && onState) onState('needresume');
+      if (autoPaused) {
+        if (!settings || settings.bgAlert !== 0) { vibrate([180]); speak('Запись на паузе. Нажми пуск, чтобы продолжить.'); }
+        if (onState) onState('needresume');
+      }
     }
   });
   window.addEventListener('pagehide', () => { if (state === 'running') autoPause(); });
@@ -52,6 +55,7 @@ const Tracker = (() => {
     state = 'paused';
     stopTick(); releaseWakeLock();
     autoPaused = true;
+    alertBackgroundPause();
     if (onState) onState('autopaused');
     emit();
   }
@@ -69,6 +73,40 @@ const Tracker = (() => {
   }
   function forceSpeak(text) { // для теста, игнорирует настройку voice
     try { if ('speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(text); u.lang = 'ru-RU'; speechSynthesis.speak(u); } } catch {}
+  }
+
+  // Звуковой сигнал (Web Audio) и вибрация — для оповещения об авто-паузе
+  let audioCtx = null;
+  function initAudio() {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC && !audioCtx) audioCtx = new AC();
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    } catch {}
+  }
+  function beep(pattern = [880, 0, 880]) {
+    try {
+      if (!audioCtx) return;
+      const t0 = audioCtx.currentTime;
+      pattern.forEach((f, i) => {
+        if (!f) return;
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        const st = t0 + i * 0.22;
+        o.type = 'sine'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, st);
+        g.gain.exponentialRampToValueAtTime(0.35, st + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, st + 0.2);
+        o.connect(g).connect(audioCtx.destination);
+        o.start(st); o.stop(st + 0.21);
+      });
+    } catch {}
+  }
+  function vibrate(pat) { try { if (navigator.vibrate) navigator.vibrate(pat); } catch {} }
+  function alertBackgroundPause() {
+    if (settings && settings.bgAlert === 0) return;
+    vibrate([250, 120, 250, 120, 400]);
+    beep([988, 0, 740]);
+    speak('Внимание. Запись на паузе, приложение свёрнуто.');
   }
 
   function plur(n, one, few, many) {
@@ -246,6 +284,7 @@ const Tracker = (() => {
     lastVoiceDist = 0; lastVoiceTime = 0;
     laps = []; lapStartDist = 0; lapStartTime = 0; nextAutoLap = 0;
     state = 'running'; autoPaused = false;
+    initAudio(); // разрешаем звук по жесту старта
     startWatch(); startTick(); acquireWakeLock();
     speak('Поехали!');
     emit();
